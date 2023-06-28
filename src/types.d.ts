@@ -1,0 +1,23 @@
+type Properties = {
+    expressID: number;
+    Name: string;
+    Type: string;
+    Productcode: string;
+    id: number;
+    Projectnummer: string;
+    Klant: string;
+    Station: string;
+    Bouwnummer: string;
+    Modulenaam: string;
+    Moduletype: string;
+    Categorie: string;
+    Materiaal: string;
+    Dikte: string;
+    Breedte: string;
+    Lengte: string;
+    Gewicht: string;
+    Volume: string;
+    Eenheid: string;
+    "IFC bestand": string;
+    Aantal: string;
+};

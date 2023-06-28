@@ -6,7 +6,8 @@
     import { onMount } from 'svelte';
     import { IFCLoader } from "web-ifc-three/IFCLoader";
     import { invoke } from '@tauri-apps/api/tauri';
-    import type { IFCModel } from 'web-ifc-three/IFC/components/IFCModel';
+    import { IFCRELDEFINESBYPROPERTIES } from "web-ifc/web-ifc-api";
+    import type { IFCModel } from "web-ifc-three/IFC/components/IFCModel";
 
     let w: number;
     let h: number;
@@ -16,6 +17,7 @@
     let renderer: THREE.WebGLRenderer;
     let ifcLoader: IFCLoader;
     let ifcModel: IFCModel;
+    let properties: Properties[] = [];
     let name = 'world';
     
     onMount(async() => {
@@ -44,7 +46,7 @@
         scene.add(directionalLight.target);
 
         const threeCanvas = <HTMLCanvasElement> document.getElementById('viewer-canvas');
-        renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true });
+        renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
@@ -70,14 +72,46 @@
         requestAnimationFrame(animate);
     }
     
-    const loadIfc = async (event: any) => {
-        // const file = event.target.files[0];
-        console.log(ifcLoader)
-        ifcLoader.load("test.ifc", (model) => {
+    async function loadIfc(url: string = "test.ifc") {
+        const props: any[] = [];
+        await new Promise<void>((resolve) => {
+            ifcLoader.load(url, async (model) => {
+            ifcModel = model;
             scene.add(model);
+            const lines: any[] = await ifcLoader.ifcManager.getAllItemsOfType(0, IFCRELDEFINESBYPROPERTIES, false);
+            const promises = lines.map(async (line) => {
+                const relation = await ifcLoader.ifcManager.getItemProperties(0, line);
+                const element = await ifcLoader.ifcManager.getItemProperties(0, relation.RelatedObjects[0].value);
+                const property = (await ifcLoader.ifcManager.getItemProperties(0, relation.RelatingPropertyDefinition.value, true)).HasProperties.map((obj: { Name: { value: any; }; NominalValue: { value: any; }; expressID: any; }) => ({
+                [obj.Name.value]: obj.NominalValue.value,
+                id: obj.expressID
+                }));
+                const elemProp = { ExpressID: element.expressID, Name: element.Name.value, Type: element.constructor.name, properties: property };
+                return flattenObject(elemProp);
+            });
+            const flattenedProps = await Promise.all(promises);
+            props.push(...flattenedProps);
+            properties = props;
+            resolve();
+            });
         });
     }
-    
+
+    function flattenObject(obj: any): {[key: string]: any} {
+        return Object.entries(obj).reduce((result: {[key: string]: any}, [key, value]: [string, any]) => {
+            if (Array.isArray(value)) {
+                value.forEach((nestedObj: {[key: string]: any}) => {
+                    Object.entries(nestedObj).forEach(([nestedKey, nestedValue]: [string, any]) => {
+                        result[nestedKey] = nestedValue;
+                    });
+                });
+            } else {
+            result[key] = value;
+            }
+            return result;
+        }, {});
+    }
+
     function onResize() {
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -86,7 +120,7 @@
 </script>
 <h1>Test</h1>
 <a href="/">Home</a>
-<button on:click={loadIfc}>Load IFC</button>
+<button on:click={() => loadIfc("test.ifc")}>Load IFC</button>
 <div bind:clientWidth={w} bind:clientHeight={h} id='container'>
     <canvas id='viewer-canvas'></canvas>
 </div>
