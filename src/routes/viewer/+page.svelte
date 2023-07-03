@@ -16,15 +16,18 @@
     let controls: OrbitControls;
     let renderer: THREE.WebGLRenderer;
     let ifcLoader: IFCLoader;
-    let ifcModel: IFCModel;
-    let properties: Properties[] = [];
-    let name = 'world';
+    let ifcModels: IFCModel[] = [];
+    let properties: ModelProperties[] = [];
+    let fileInput: HTMLInputElement;
     
     onMount(async() => {
-        console.log(await invoke('greet', { name }))
         setupThree();
         setupLoader();
         animate();
+        await parseIfc();
+        let json = JSON.stringify(properties[0].properties)
+        // console.log(await invoke('parse_json', { json }))       
+        console.log(json) 
     })
 
     function setupThree() {
@@ -72,44 +75,66 @@
         requestAnimationFrame(animate);
     }
     
-    async function loadIfc(url: string = "test.ifc") {
-        const props: any[] = [];
+    async function parseIfc(url: string = "test.ifc") {
         await new Promise<void>((resolve) => {
             ifcLoader.load(url, async (model) => {
-            ifcModel = model;
-            scene.add(model);
-            const lines: any[] = await ifcLoader.ifcManager.getAllItemsOfType(0, IFCRELDEFINESBYPROPERTIES, false);
-            const promises = lines.map(async (line) => {
-                const relation = await ifcLoader.ifcManager.getItemProperties(0, line);
-                const element = await ifcLoader.ifcManager.getItemProperties(0, relation.RelatedObjects[0].value);
-                const property = (await ifcLoader.ifcManager.getItemProperties(0, relation.RelatingPropertyDefinition.value, true)).HasProperties.map((obj: { Name: { value: any; }; NominalValue: { value: any; }; expressID: any; }) => ({
-                [obj.Name.value]: obj.NominalValue.value,
-                id: obj.expressID
-                }));
-                const elemProp = { ExpressID: element.expressID, Name: element.Name.value, Type: element.constructor.name, properties: property };
-                return flattenObject(elemProp);
+                const id = 0
+                ifcModels.push(model)
+                // scene.add(model);
+                let props = await getProperties(id);
+                properties.push(props)
+                // ifcLoader.ifcManager.close(id, scene)
+                resolve();
             });
-            const flattenedProps = await Promise.all(promises);
-            props.push(...flattenedProps);
-            properties = props;
-            resolve();
-            });
+            
         });
     }
 
-    function flattenObject(obj: any): {[key: string]: any} {
-        return Object.entries(obj).reduce((result: {[key: string]: any}, [key, value]: [string, any]) => {
-            if (Array.isArray(value)) {
-                value.forEach((nestedObj: {[key: string]: any}) => {
-                    Object.entries(nestedObj).forEach(([nestedKey, nestedValue]: [string, any]) => {
-                        result[nestedKey] = nestedValue;
-                    });
-                });
-            } else {
-            result[key] = value;
-            }
-            return result;
-        }, {});
+    async function getProperties(id: number): Promise<ModelProperties> {
+        const lines: any[] = await ifcLoader.ifcManager.getAllItemsOfType(id, IFCRELDEFINESBYPROPERTIES, false);
+        const promises = lines.map(async (line) => {
+            const relation = await ifcLoader.ifcManager.getItemProperties(id, line);
+            const element = await ifcLoader.ifcManager.getItemProperties(id, relation.RelatedObjects[0].value);
+            const property = (await ifcLoader.ifcManager.getItemProperties(id, relation.RelatingPropertyDefinition.value, true)).HasProperties.reduce((obj: { [x: string]: any; }, curr: { Name: { value: string | number; }; NominalValue: { value: any; }; }) => {
+                obj[curr.Name.value] = curr.NominalValue.value;
+                return obj;
+            }, {});
+            const prop: Properties = { 
+                express_id: element.expressID, 
+                name: element.Name.value, 
+                ifc_type: element.constructor.name,
+                productcode: property.Productcode,
+                projectnummer: property.Projectnummer,
+                klant: property.Klant,
+                station: property.Station,
+                bouwnummer: property.Bouwnummer,
+                modulenaam: property.Modulenaam,
+                moduletype: property.Moduletype,
+                categorie: property.Categorie,
+                materiaal: property.Materiaal,
+                dikte: property.Dikte,
+                breedte: property.Breedte,
+                lengte: property.Lengte,
+                gewicht: property.Gewicht,
+                volume: property.Volume,
+                eenheid: property.Eenheid,
+                ifc_bestand: property["IFC bestand"], 
+                aantal: property.Aantal,
+            };
+            return prop;
+        });
+        const props = await Promise.all(promises);
+        const modelProperties = { model_id: id, properties: props };
+        return modelProperties;
+    }
+
+    const loadIFCs = async (event: any) => {
+        const files = event.target.files;
+        const promises = [];
+        for (let i = 0; i < files.length; i++) {
+            promises.push(parseIfc(files[i].path));
+        }
+        await Promise.all(promises);
     }
 
     function onResize() {
@@ -120,20 +145,9 @@
 </script>
 <h1>Test</h1>
 <a href="/">Home</a>
-<button on:click={() => loadIfc("test.ifc")}>Load IFC</button>
-<div bind:clientWidth={w} bind:clientHeight={h} id='container'>
-    <canvas id='viewer-canvas'></canvas>
+<input style="display:none" type="file" multiple accept=".ifc" on:change={(e)=>loadIFCs(e)} bind:this={fileInput} >
+<button type='button' on:click={()=>{fileInput.click()}}>Load IFCs</button>
+<div bind:clientWidth={w} bind:clientHeight={h} id='container' class='w-full max-h-max'>
+    <canvas id='viewer-canvas' class='w-full h-full'></canvas>
 </div>
 <svelte:window on:resize={onResize} />
-
-<style>
-    #viewer-canvas {
-        width: 100%;
-        height: 100%;
-    }
-
-    #container {
-        width: 100%;
-        height: 600px;
-    }
-</style>

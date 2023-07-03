@@ -1,23 +1,27 @@
 type Properties = {
-    expressID: number;
-    Name: string;
-    Type: string;
-    Productcode: string;
-    id: number;
-    Projectnummer: string;
-    Klant: string;
-    Station: string;
-    Bouwnummer: string;
-    Modulenaam: string;
-    Moduletype: string;
-    Categorie: string;
-    Materiaal: string;
-    Dikte: string;
-    Breedte: string;
-    Lengte: string;
-    Gewicht: string;
-    Volume: string;
-    Eenheid: string;
-    "IFC bestand": string;
-    Aantal: string;
+    express_id: number; // expressID
+    name: string;
+    ifc_type: string;
+    productcode: string;
+    projectnummer: string;
+    klant: string;
+    station: string;
+    bouwnummer: string;
+    modulenaam: string;
+    moduletype: string;
+    categorie: string;
+    materiaal: string;
+    dikte: number;
+    breedte: number;
+    lengte: number;
+    gewicht: number;
+    volume: number;
+    eenheid: string;
+    ifc_bestand: string; // IFC Bestand
+    aantal: number;
 };
+
+type ModelProperties = {
+    model_id: number;
+    properties: Properties[];
+}
