@@ -1,6 +1,7 @@
 <script lang="ts">
     // @ts-ignore
     import * as THREE from "three";
+    import Stats from 'stats.js';
     // @ts-ignore
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { onMount } from 'svelte';
@@ -19,42 +20,37 @@
     let ifcModels: IFCModel[] = [];
     let properties: ModelProperties[] = [];
     let fileInput: HTMLInputElement;
-    
+    let stats: Stats;
+
     onMount(async() => {
         setupThree();
         setupLoader();
+        stats = new Stats();
+        stats.showPanel(2);
+        document.body.appendChild(stats.dom);
         animate();
-        await parseIfc();
-        let json = JSON.stringify(properties[0].properties)
-        // console.log(await invoke('parse_json', { json }))       
-        console.log(json) 
     })
 
     function setupThree() {
         scene = new THREE.Scene();
 
-        const aspect = w / h;
-        camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+        camera = new THREE.PerspectiveCamera(45, (w/h), 0.1, 1000);
         camera.position.set(15, 10, 8);
 
         const lightColor = 0xffeeff;
-
-        const ambientLight = new THREE.AmbientLight(lightColor, 0.5);
-        scene.add(ambientLight);
-
         const directionalLight = new THREE.DirectionalLight(lightColor, 1);
         directionalLight.position.set(0, 10, 0);
         directionalLight.target.position.set(-5, 0, 0);
         scene.add(directionalLight);
         scene.add(directionalLight.target);
+        scene.add(new THREE.AmbientLight(lightColor, 0.5));
 
         const threeCanvas = <HTMLCanvasElement> document.getElementById('viewer-canvas');
         renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        const grid = new THREE.GridHelper(50, 30)
-        scene.add(grid);
+        scene.add(new THREE.GridHelper(50, 30));
 
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
@@ -63,30 +59,33 @@
 
     async function setupLoader() {
         ifcLoader = new IFCLoader();
-        ifcLoader.ifcManager.applyWebIfcConfig({
-            COORDINATE_TO_ORIGIN: true,
+        await ifcLoader.ifcManager.applyWebIfcConfig({
+            COORDINATE_TO_ORIGIN: false,
             USE_FAST_BOOLS: true,
         });
     }
 
     const animate = () => {
+        stats.begin();
         controls.update();
         renderer.render(scene, camera);
+        stats.end();
         requestAnimationFrame(animate);
     }
     
-    async function parseIfc(url: string = "test.ifc") {
+    async function parseIfc(url: string) {
         await new Promise<void>((resolve) => {
-            ifcLoader.load(url, async (model) => {
-                const id = 0
-                ifcModels.push(model)
-                // scene.add(model);
-                let props = await getProperties(id);
-                properties.push(props)
-                // ifcLoader.ifcManager.close(id, scene)
+            ifcLoader.load(url, async (ifcModel) => {
+                ifcModels.push(ifcModel);
+                scene.add(ifcModel);
+                ifcModel.translateX(-15);
+                ifcModel.translateZ(15);
+                ifcModel.translateY(0.3);
+                ifcModel.updateMatrixWorld(true);
+
+                properties.push(await getProperties(ifcModel.modelID))
                 resolve();
             });
-            
         });
     }
 
@@ -132,9 +131,16 @@
         const files = event.target.files;
         const promises = [];
         for (let i = 0; i < files.length; i++) {
-            promises.push(parseIfc(files[i].path));
+            let ifcURL = URL.createObjectURL(files[i]);
+            promises.push(await parseIfc(ifcURL));
         }
         await Promise.all(promises);
+        const propertiesArray = properties.flatMap(obj => obj.properties);
+        const json = JSON.stringify(propertiesArray);
+        const path = "C:/Users/DN51/OneDrive - TBI Holding/Bureaublad/rust/polars-test/"
+        if (propertiesArray.length > 0) {
+            console.log(await invoke('parse_json', { json, path }))
+        }
     }
 
     function onResize() {

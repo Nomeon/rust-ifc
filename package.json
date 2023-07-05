@@ -29,6 +29,7 @@
 	"dependencies": {
 		"@tauri-apps/api": "^1.4.0",
 		"jandas": "^1.0.0",
+		"stats.js": "^0.17.0",
 		"three": "^0.153.0",
 		"web-ifc-three": "^0.0.125"
 	}
