@@ -1,7 +1,6 @@
 <script lang="ts">
     // @ts-ignore
     import * as THREE from "three";
-    import Stats from 'stats.js';
     // @ts-ignore
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { onMount } from 'svelte';
@@ -20,14 +19,10 @@
     let ifcModels: IFCModel[] = [];
     let properties: ModelProperties[] = [];
     let fileInput: HTMLInputElement;
-    let stats: Stats;
 
     onMount(async() => {
         setupThree();
-        setupLoader();
-        stats = new Stats();
-        stats.showPanel(2);
-        document.body.appendChild(stats.dom);
+        await setupLoader();
         animate();
     })
 
@@ -63,13 +58,12 @@
             COORDINATE_TO_ORIGIN: false,
             USE_FAST_BOOLS: true,
         });
+        await ifcLoader.ifcManager.useWebWorkers(true, "IFCWorker.js")
     }
 
     const animate = () => {
-        stats.begin();
         controls.update();
         renderer.render(scene, camera);
-        stats.end();
         requestAnimationFrame(animate);
     }
     
@@ -78,8 +72,8 @@
             ifcLoader.load(url, async (ifcModel) => {
                 ifcModels.push(ifcModel);
                 scene.add(ifcModel);
-                ifcModel.translateX(-15);
-                ifcModel.translateZ(15);
+                ifcModel.translateX(-10);
+                ifcModel.translateZ(10);
                 ifcModel.translateY(0.3);
                 ifcModel.updateMatrixWorld(true);
 
